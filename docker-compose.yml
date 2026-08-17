@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686" # UI
+      - "14250:14250" # gRPC for otel-collector
+      - "14268:14268"
+    networks:
+      - microservice-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090" # UI
+    networks:
+      - microservice-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "8889:8889" # Prometheus metrics exporter
+    depends_on:
+      - jaeger
+      - prometheus
+    networks:
+      - microservice-net
+
+  backend-service:
+    build: ./backend-service
+    ports:
+      - "3001:3001"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=grpc://otel-collector:4317
+      - OTEL_SERVICE_NAME=backend-service
+    depends_on:
+      - otel-collector
+    networks:
+      - microservice-net
+
+  frontend-service:
+    build: ./frontend-service
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend-service:3001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=grpc://otel-collector:4317
+      - OTEL_SERVICE_NAME=frontend-service
+    depends_on:
+      - backend-service
+      - otel-collector
+    networks:
+      - microservice-net
+
+  backend-ai:
+    build: ./backend-ai
+    ports:
+      - "8000:8000"
+    depends_on:
+      - prometheus
+      - jaeger
+    networks:
+      - microservice-net
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "4000:3000"
+    depends_on:
+      - backend-ai
+    networks:
+      - microservice-net
+
+networks:
+  microservice-net:
+    driver: bridge

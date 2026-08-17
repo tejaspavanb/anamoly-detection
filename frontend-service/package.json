@@ -1,0 +1,16 @@
+{
+  "name": "frontend-service",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --require ./tracing.js index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "@opentelemetry/sdk-node": "^0.51.1",
+    "@opentelemetry/api": "^1.8.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.47.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.51.1",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.51.1"
+  }
+}
