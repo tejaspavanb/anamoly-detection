@@ -30,6 +30,7 @@ lock = threading.Lock()
 state = {
     "latest": None,
     "history": [],
+    "timeline": [],
     "events": [],
     "incident": None,
     "snapshot": None,
@@ -48,7 +49,7 @@ def iso_now():
 
 def push_event(level, message):
     state["events"].append({"ts": iso_now(), "level": level, "message": message})
-    del state["events"][:-40]
+    del state["events"][:-80]
 
 
 def public_settings():
@@ -202,6 +203,22 @@ def tick():
         if snapshot["enough"] or snapshot["anomaly"]:
             state["history"].append(round(snapshot["score"], 5))
             del state["history"][:-60]
+        state["timeline"].append({
+            "ts": iso_now(),
+            "anomaly": bool(snapshot["anomaly"]),
+            "score": round(float(snapshot["score"]), 5),
+            "services": [
+                {
+                    "name": service["name"],
+                    "status": "down" if not service.get("reachable") else (service.get("status") or "down"),
+                    "latency": round(float(service.get("avg_latency_ms") or 0), 1),
+                    "error_rate": round(float(service.get("error_rate") or 0), 3),
+                    "rps": round(float(service.get("rps") or 0), 2),
+                }
+                for service in snapshot["services"]
+            ],
+        })
+        del state["timeline"][:-180]
         incident = state["incident"]
         now = time.time()
         if incident and incident["phase"] == "watching" and not snapshot["anomaly"]:
@@ -339,6 +356,7 @@ def overview_payload():
         "attribution": latest["attribution"],
         "ready": latest["ready"],
         "history": list(state["history"]),
+        "timeline": list(state["timeline"]),
         "events": list(state["events"]),
         "incident": public_incident,
         "settings": public_settings(),

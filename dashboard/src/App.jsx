@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Chat from './Chat.jsx';
+import Status from './Status.jsx';
 import './App.css';
 
 const NODES = [
@@ -112,6 +113,7 @@ function Terminal({ service, marked }) {
 }
 
 export default function App() {
+  const [route, setRoute] = useState(() => (window.location.pathname === '/status' ? '/status' : '/'));
   const [data, setData] = useState(null);
   const [offline, setOffline] = useState(false);
   const [target, setTarget] = useState('payment-service');
@@ -120,6 +122,18 @@ export default function App() {
   const [keyDraft, setKeyDraft] = useState('');
   const [shot, setShot] = useState(null);
   const [autoOverride, setAutoOverride] = useState(null);
+
+  useEffect(() => {
+    const sync = () => setRoute(window.location.pathname === '/status' ? '/status' : '/');
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, []);
+
+  function openRoute(event, href) {
+    event.preventDefault();
+    window.history.pushState({}, '', href);
+    setRoute(href);
+  }
 
   useEffect(() => {
     let stop = false;
@@ -216,32 +230,50 @@ export default function App() {
   const image = shot && incidentId && shot.id === incidentId ? shot.image : null;
   const repair = incident?.repair;
 
+  const healthLabel = offline ? 'API offline' : data?.anomaly ? 'Anomaly' : data?.ready ? 'Operational' : 'Starting';
+
   return (
     <div className="app">
-      <header className="top">
-        <div>
-          <p className="eyebrow">Microservice anomaly detection</p>
-          <h1>Live service console</h1>
+      <header className="top bar">
+        <div className="brand">
+          <span className="mark" aria-hidden="true" />
+          <div>
+            <p className="eyebrow">Anomaly detection</p>
+            <strong>Service console</strong>
+          </div>
         </div>
+        <nav className="nav" aria-label="Pages">
+          <a href="/" className={route === '/' ? 'on' : ''} onClick={(event) => openRoute(event, '/')}>Console</a>
+          <a href="/status" className={route === '/status' ? 'on' : ''} onClick={(event) => openRoute(event, '/status')}>Status</a>
+        </nav>
         <div className="top-controls">
-          <span className={`health ${data?.anomaly ? 'bad' : 'ok'}`}>
-            {offline ? 'API offline' : data?.anomaly ? 'Anomaly' : data?.ready ? 'Healthy' : 'Starting'}
-          </span>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={auto}
-              onChange={(event) => {
-                const next = event.target.checked;
-                setAutoOverride(next);
-                run('auto', '/api/settings', { auto_repair: next });
-              }}
-            />
-            Auto-repair
-          </label>
+          <span className={`health ${offline || data?.anomaly ? 'bad' : 'ok'}`}>{healthLabel}</span>
+          {route === '/' && (
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={auto}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setAutoOverride(next);
+                  run('auto', '/api/settings', { auto_repair: next });
+                }}
+              />
+              Auto-repair
+            </label>
+          )}
           <span className="model">{data?.settings?.model || 'qwen/qwen3.8-27b'}</span>
         </div>
       </header>
+
+      {route === '/status' ? (
+        <Status data={data} offline={offline} />
+      ) : (
+      <>
+      <div className="page-head">
+        <h1>Live service console</h1>
+        <p className="hint">Three processes, their logs, and the detector watching the chain.</p>
+      </div>
 
       <section className="graph" aria-label="Service chain">
         {services.map((service, index) => {
@@ -440,6 +472,8 @@ export default function App() {
         </div>
         <Chat />
       </section>
+      </>
+      )}
     </div>
   );
 }
