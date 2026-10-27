@@ -1,7 +1,5 @@
 fastapi
 uvicorn
-torch
-requests
-pandas
 numpy
-scikit-learn
+pillow
+requests

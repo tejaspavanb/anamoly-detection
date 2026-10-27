@@ -1,8 +1,10 @@
 import React from 'react'
-import ReactDOM from 'react-dom/client'
+import * as ReactDOMClient from 'react-dom/client'
 import App from './App.jsx'
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+const rootApi = ReactDOMClient.createRoot ? ReactDOMClient : ReactDOMClient.default
+
+rootApi.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,

@@ -1,62 +1,78 @@
-version: '3.8'
+version: "3.8"
 
 services:
   jaeger:
     image: jaegertracing/all-in-one:latest
+    profiles: ["tracing"]
     ports:
-      - "16686:16686" # UI
-      - "14250:14250" # gRPC for otel-collector
+      - "16686:16686"
+      - "14250:14250"
       - "14268:14268"
     networks:
       - microservice-net
 
   prometheus:
     image: prom/prometheus:latest
+    profiles: ["tracing"]
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - "9090:9090" # UI
+      - "9090:9090"
     networks:
       - microservice-net
 
   otel-collector:
     image: otel/opentelemetry-collector:latest
+    profiles: ["tracing"]
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
-      - "8889:8889" # Prometheus metrics exporter
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
     depends_on:
       - jaeger
       - prometheus
     networks:
       - microservice-net
 
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+    networks:
+      - microservice-net
+
   backend-service:
-    build: ./backend-service
+    build:
+      context: .
+      dockerfile: backend-service/Dockerfile
     ports:
       - "3001:3001"
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=grpc://otel-collector:4317
-      - OTEL_SERVICE_NAME=backend-service
+      - PORT=3001
+      - PAYMENT_URL=http://payment-service:3002
     depends_on:
-      - otel-collector
+      - payment-service
     networks:
       - microservice-net
 
   frontend-service:
-    build: ./frontend-service
+    build:
+      context: .
+      dockerfile: frontend-service/Dockerfile
     ports:
       - "3000:3000"
     environment:
+      - PORT=3000
       - BACKEND_URL=http://backend-service:3001
-      - OTEL_EXPORTER_OTLP_ENDPOINT=grpc://otel-collector:4317
-      - OTEL_SERVICE_NAME=frontend-service
     depends_on:
       - backend-service
-      - otel-collector
     networks:
       - microservice-net
 
@@ -64,16 +80,25 @@ services:
     build: ./backend-ai
     ports:
       - "8000:8000"
+    environment:
+      - FRONTEND_URL=http://frontend-service:3000
+      - BACKEND_URL=http://backend-service:3001
+      - PAYMENT_URL=http://payment-service:3002
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-qwen/qwen3.8-27b}
     depends_on:
-      - prometheus
-      - jaeger
+      - frontend-service
+      - backend-service
+      - payment-service
     networks:
       - microservice-net
 
   dashboard:
     build: ./dashboard
     ports:
-      - "4000:3000"
+      - "5173:5173"
+    environment:
+      - VITE_PROXY_TARGET=http://backend-ai:8000
     depends_on:
       - backend-ai
     networks:
